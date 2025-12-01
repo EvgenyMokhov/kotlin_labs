@@ -2,8 +2,8 @@ package com.qwerty.spacenotes.data
 
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
-import com.qwerty.spacenotes.model.Note
-import com.qwerty.spacenotes.model.json
+import com.qwerty.spacenotes.data.model.Note
+import com.qwerty.spacenotes.data.model.json
 import org.json.JSONArray
 import java.io.File
 import org.slf4j.LoggerFactory

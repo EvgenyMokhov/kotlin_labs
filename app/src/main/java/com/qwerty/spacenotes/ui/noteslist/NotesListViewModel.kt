@@ -23,6 +23,7 @@ class NotesListViewModel @Inject constructor(
     init {
         loadNotes()
     }
+
     fun loadNotes() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -33,7 +34,7 @@ class NotesListViewModel @Inject constructor(
 
     fun deleteNote(noteId: String) {
         viewModelScope.launch {
-            repository.deleteNote(noteId)
+            repository.deleteNoteFromCache(noteId)
             loadNotes()
         }
     }
