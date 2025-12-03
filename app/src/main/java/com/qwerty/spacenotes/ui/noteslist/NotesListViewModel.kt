@@ -7,8 +7,10 @@ import com.qwerty.spacenotes.data.repository.NotesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -16,17 +18,18 @@ import javax.inject.Inject
 class NotesListViewModel @Inject constructor(
     private val repository: NotesRepository,
 ) : ViewModel() {
-    private val _notes = MutableStateFlow<List<Note>>(emptyList())
-    val notes: StateFlow<List<Note>> = _notes
+    val notes: StateFlow<List<Note>> = repository.getAllNotesStream()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
     private val _uiEvents = MutableSharedFlow<UiEvent>()
     val uiEvents = _uiEvents.asSharedFlow()
-
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
     init {
         loadInitialData()
@@ -36,7 +39,7 @@ class NotesListViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                syncWithServer()
+                repository.getAllNotes(false)
             } catch (e: Exception) {
                 _uiEvents.emit(UiEvent.Error("Failed to load notes: ${e.message}"))
             } finally {
@@ -45,43 +48,20 @@ class NotesListViewModel @Inject constructor(
         }
     }
 
-    private suspend fun syncWithServer() {
-        repository.syncWithBackend()
-        _notes.value = repository.getAllNotes(true)
-    }
-
-    fun refreshNotes() {
-        viewModelScope.launch {
-            _isRefreshing.value = true
-            try {
-                syncWithServer()
-            } catch (e: Exception) {
-                _uiEvents.emit(UiEvent.Error("Sync failed: ${e.message}"))
-            } finally {
-                _isRefreshing.value = false
-            }
-        }
-
-    }
-
     fun deleteNote(noteId: String) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                _notes.value = _notes.value.filter { it.uid != noteId }
-
-                repository.deleteNoteFromCache(noteId)
                 repository.deleteNoteFromBackend(noteId).fold(
                     onSuccess = {
                         _uiEvents.emit(UiEvent.NoteDeleted)
+                        repository.deleteNoteFromCache(noteId)
                     },
                     onFailure = { error ->
-                        syncWithServer()
                         _uiEvents.emit(UiEvent.Error("Delete failed: ${error.message}"))
                     }
                 )
             } catch (e: Exception) {
-                syncWithServer()
                 _uiEvents.emit(UiEvent.Error("Failed to delete note: ${e.message}"))
             } finally {
                 _isLoading.value = false

@@ -3,10 +3,12 @@ package com.qwerty.spacenotes.data.repository
 import com.qwerty.spacenotes.data.model.Note
 import com.qwerty.spacenotes.data.source.local.LocalNoteDataSource
 import com.qwerty.spacenotes.data.source.remote.RemoteNoteDataSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -18,6 +20,22 @@ class NotesRepositoryImpl @Inject constructor(
     private val remoteDataSource: RemoteNoteDataSource
 ) : NotesRepository {
     private val syncMutex = Mutex()
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        initializeRepository()
+    }
+
+    private fun initializeRepository() {
+        repositoryScope.launch {
+            try {
+                remoteDataSource.init()
+                syncWithBackend()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     override fun getAllNotesStream(): Flow<List<Note>> =
         localDataSource.getAllNotesStream().flowOn(Dispatchers.IO)
@@ -46,7 +64,6 @@ class NotesRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO + SupervisorJob()) {
             try {
                 syncMutex.withLock {
-                    syncWithBackend()
                     try {
                         remoteDataSource.pushNote(note)
                         Result.success(Unit)
@@ -68,7 +85,6 @@ class NotesRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO) {
             try {
                 syncMutex.withLock {
-                    syncWithBackend()
                     remoteDataSource.deleteNote(id)
                     Result.success(Unit)
                 }
@@ -78,12 +94,11 @@ class NotesRepositoryImpl @Inject constructor(
         }
 
     override suspend fun syncWithBackend() {
-        withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO + SupervisorJob()) {
             try {
                 val remoteNotes = remoteDataSource.fetchNotes()
                 localDataSource.saveAllNotes(remoteNotes)
             } catch (e: Exception) {
-                // Логируем ошибку, но не прерываем выполнение
                 e.printStackTrace()
             }
         }

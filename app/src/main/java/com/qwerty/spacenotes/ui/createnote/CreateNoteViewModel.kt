@@ -61,8 +61,6 @@ class CreateNoteViewModel @Inject constructor(
                 }.onFailure { error ->
                     _uiEvents.emit(UiEvent.Error("Failed to sync note: ${error.message}"))
                 }
-
-                repository.syncWithBackend()
             } catch (e: Exception) {
                 _uiEvents.emit(UiEvent.Error("Failed to save note: ${e.message}"))
             }

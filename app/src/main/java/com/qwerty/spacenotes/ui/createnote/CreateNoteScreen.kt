@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun CreateNoteScreen(
     onBack: () -> Unit,
-    onSaveSuccess: () -> Unit,
     viewModel: CreateNoteViewModel = hiltViewModel(),
 ) {
     val noteState = viewModel.note.value
